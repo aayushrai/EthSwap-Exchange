@@ -61,7 +61,44 @@ contract("EthSwap", ([deployer, investor]) => {
 
       // check ether balance after purchase ( we send 100 token to investor so we are going to recieve 1 ether because 100 token of dapp cost 1 ether)
       ethSwapBalance = await web3.eth.getBalance(ethSwap.address);
-      assert.equal(ethSwapBalance.toString(),web3.utils.toWei("1","Ether"));
+      assert.equal(ethSwapBalance.toString(), web3.utils.toWei("1", "Ether"));
+
+      const event = result.logs[0].args;
+      assert.equal(event.account, investor);
+      assert.equal(event.token, token.address);
+      assert.equal(event.amount.toString(), tokens("100").toString());
+      assert.equal(event.rate.toString(), "100");
+    });
+  });
+
+  describe("SellTokens()", async () => {
+    let result;
+
+    before(async () => {
+      await token.approve(ethSwap.address, tokens("100"),{from: investor});
+      result = await ethSwap.sellTokens(tokens("100"), { from: investor });
+    });
+    it("Allows user to instantly purchase tokens from ethSwap for a fixed price", async () => {
+      // // check investor token balance after purchase
+      let investorBalance = await token.balanceOf(investor);
+      assert.equal(investorBalance.toString(), tokens("0"));
+
+      // // check ethSwap balance after purchase ( 100 token send to investor so remeaning token is 999900 of 1000000)
+      let ethSwapBalance;
+      ethSwapBalance = await token.balanceOf(ethSwap.address);
+      assert.equal(ethSwapBalance.toString(), tokens("1000000"));
+
+      // // check ether balance after purchase ( we send 100 token to investor so we are going to recieve 1 ether because 100 token of dapp cost 1 ether)
+      ethSwapBalance = await web3.eth.getBalance(ethSwap.address);
+      assert.equal(ethSwapBalance.toString(),web3.utils.toWei("0","Ether"));
+
+      const event = result.logs[0].args;
+      assert.equal(event.account,investor);
+      assert.equal(event.token, token.address);
+      assert.equal(event.amount.toString(),tokens('100').toString());
+      assert.equal(event.rate.toString(),'100');
+
+      // FAILURE: inverstor can't sell more tokens than they have
     });
   });
 });
