@@ -1,9 +1,9 @@
 import React, { Component } from "react";
 import "./App.css";
-import { ethers } from "ethers";
 import EthSwap from "../abis/EthSwap.json";
 import Token from "../abis/Token.json";
-import SwapFormCompoent from "./SwapFormCompoent";
+import BuyForm from "./BuyForm";
+import Web3 from "web3";
 
 class App extends Component {
   constructor(props) {
@@ -15,38 +15,40 @@ class App extends Component {
       ethSwap: {},
       tokenBalance: 0,
       loading: true,
+      rate: 100,
+      ethSwapSigner: {},
     };
+    this.enableEtherium();
   }
-  render() {
-    const networkID = 5777;
 
-    const connectWallet = async () => {
-      if (window.ethereum) {
-        window.ethereum
-          .request({ method: "eth_requestAccounts" })
-          .then((result) => {
-            getEthUserAccount(result[0]);
-          });
-      } else {
-        alert("Meta Mask is not installed!!!");
+  enableEtherium = async () => {
+    if (window.ethereum) {
+      window.web3 = new Web3(window.ethereum);
+    } else {
+      alert("No web3 browser found || no ethereum wallet");
+    }
+  };
+  render() {
+    const connectWallet = async () => { 
+      if (window.web3) {
+        window.web3.eth.getAccounts((error, accounts) =>
+          getEthUserAccount(accounts[0])
+        );
       }
     };
 
     // load token contract
     const getTokenContract = async () => {
+      const networkID = await window.web3.eth.net.getId();
       const tokenAbi = Token.abi;
       const tokenData = Token.networks[networkID];
       if (tokenData) {
         let tokenContractAddress = tokenData.address;
-        let tokenProvider = new ethers.providers.Web3Provider(window.ethereum);
-        let tokenSigner = tokenProvider.getSigner();
-        let tokenContract = new ethers.Contract(
-          tokenContractAddress,
+        let tokenContract = new window.web3.eth.Contract(
           tokenAbi,
-          tokenSigner
+          tokenContractAddress
         );
         this.setState({ token: tokenContract });
-        console.log(tokenContract);
       } else {
         alert(
           "Please Switch to correct network, this token does not deployed on this network"
@@ -56,21 +58,18 @@ class App extends Component {
 
     // load ethswap contract
     const getEthSwapContract = async () => {
+      const networkID = await window.web3.eth.net.getId();
       const ethSwapAbi = EthSwap.abi;
       const ethSwapData = EthSwap.networks[networkID];
       if (ethSwapData) {
         let ethSwapContractAddress = ethSwapData.address;
-        let ethSwapProvider = new ethers.providers.Web3Provider(
-          window.ethereum
-        );
-        let ethSwapSigner = ethSwapProvider.getSigner();
-        let ethSwapContract = new ethers.Contract(
-          ethSwapContractAddress,
+        let ethSwapContract = new window.web3.eth.Contract(
           ethSwapAbi,
-          ethSwapSigner
+          ethSwapContractAddress
         );
-        this.setState({ ethSwap: ethSwapContract });
-        console.log(ethSwapContract);
+        this.setState({
+          ethSwap: ethSwapContract,
+        });
       } else {
         alert(
           "Please Switch to correct network, this EthSwap does not deployed on this network"
@@ -78,36 +77,47 @@ class App extends Component {
       }
     };
 
-    const getEthUserAccount = (newAccount) => {
+    const getEthUserAccount = async (newAccount) => {
       this.setState({ account: newAccount });
-      getEthUserBalance(newAccount.toString());
-      getTokenContract();
-      getUserTokenBalance();
-      getEthSwapContract();
+      await getEthUserBalance(newAccount.toString());
+      await getTokenContract();
+      await getEthSwapContract();
+      await getUserTokenBalance();
       this.setState({ loading: false });
     };
 
     const getEthUserBalance = (address) => {
-      window.ethereum
-        .request({ method: "eth_getBalance", params: [address, "latest"] })
-        .then((balance) => {
-          balance = ethers.utils.formatEther(balance);
-          this.setState({ balance });
-        });
+      window.web3.eth.getBalance(address).then((balance) => {
+        balance = window.web3.utils.fromWei(balance);
+        this.setState({ balance });
+      });
     };
 
     const getUserTokenBalance = async () => {
-      let tokenBalance = await this.state.token.balanceOf(this.state.account);
-      this.setState({ tokenBalance: tokenBalance.toString() });
+      this.state.token.methods
+          .balanceOf(this.state.account)
+          .call({ from: this.state.account }, (error, result) => {
+            this.setState({
+              tokenBalance: window.web3.utils.fromWei(result.toString()),
+            });
+          });
     };
+
+    const buyToken = async (etherAmount) => {
+      let toWei = window.web3.utils.toWei(etherAmount);
+      this.state.ethSwap.methods.buyTokens
+        .send({ from: this.state.account, value: toWei })
+        .then((hash) => console.log(hash));
+    };
+
     const chainChangedHandler = () => {
       window.location.reload();
     };
 
-    // whenever we change account in metamask then refetch the account
+    // // whenever we change account in metamask then refetch the account
     window.ethereum.on("accountsChanged", connectWallet);
 
-    // whenever we change the chain in metamask then it's reload the page
+    // // whenever we change the chain in metamask then it's reload the page
     window.ethereum.on("chainChanged", chainChangedHandler);
 
     let mainComponent;
@@ -115,9 +125,11 @@ class App extends Component {
       mainComponent = <div>Loading.......</div>;
     } else {
       mainComponent = (
-        <SwapFormCompoent
+        <BuyForm
           ethBalance={this.state.balance}
           ourTokenBalance={this.state.tokenBalance}
+          buyToken={buyToken}
+          rate={this.state.rate}
         />
       );
     }
@@ -139,7 +151,9 @@ class App extends Component {
           <div className="row">
             <main role="main" className="col-lg-12 d-flex text-center">
               <div className="content mr-auto ml-auto">
-                {this.state.account === "" && <button onClick={connectWallet}>Connect Wallet</button>}
+                {this.state.account === "" && (
+                  <button onClick={connectWallet}>Connect Wallet</button>
+                )}
                 {mainComponent}
               </div>
             </main>
