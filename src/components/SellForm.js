@@ -1,7 +1,7 @@
 import React, { Component } from "react";
 import "./App.css";
 
-export default class BuyForm extends Component {
+export default class SellForm extends Component {
   constructor(props) {
     super(props);
     this.state = {
@@ -29,17 +29,9 @@ export default class BuyForm extends Component {
           className="form"
           onSubmit={(event) => {
             event.preventDefault();
-            this.props.buyToken(this.state.input);
+            this.props.sellToken(this.state.output);
           }}
         >
-          <div>
-            <div className="flex justifySpaceBtw">
-              <div>Eth</div>
-              <div>Balance:{this.props.ethBalance}</div>
-            </div>
-            <input type="text" value={this.state.input} onChange={setEth} />
-          </div>
-          <button onClick={this.props.toggle}>||</button>
           <div>
             <div className="flex justifySpaceBtw">
               <div>Our Token</div>
@@ -51,6 +43,15 @@ export default class BuyForm extends Component {
               onChange={setOurToken}
             />
           </div>
+          <button onClick={this.props.toggle}>||</button>
+          <div>
+            <div className="flex justifySpaceBtw">
+              <div>Eth</div>
+              <div>Balance:{this.props.ethBalance}</div>
+            </div>
+            <input type="text" value={this.state.input} onChange={setEth} />
+          </div>
+
           <div>1 Eth = {this.props.rate} Our Token</div>
           <div>
             <input type="submit" value="Swap" />

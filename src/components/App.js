@@ -3,6 +3,7 @@ import "./App.css";
 import EthSwap from "../abis/EthSwap.json";
 import Token from "../abis/Token.json";
 import BuyForm from "./BuyForm";
+import SellForm from "./SellForm";
 import Web3 from "web3";
 
 class App extends Component {
@@ -17,6 +18,7 @@ class App extends Component {
       loading: true,
       rate: 100,
       ethSwapSigner: {},
+      buyOrSell: "Buy",
     };
     this.enableEtherium();
   }
@@ -29,11 +31,12 @@ class App extends Component {
     }
   };
   render() {
-    const connectWallet = async () => { 
+    const connectWallet = async () => {
       if (window.web3) {
-        window.web3.eth.getAccounts((error, accounts) =>
-          getEthUserAccount(accounts[0])
-        );
+        window.web3.eth.getAccounts((error, accounts) => {
+          if (accounts && accounts.length) getEthUserAccount(accounts[0]);
+          else alert("No account found");
+        });
       }
     };
 
@@ -95,19 +98,38 @@ class App extends Component {
 
     const getUserTokenBalance = async () => {
       this.state.token.methods
-          .balanceOf(this.state.account)
-          .call({ from: this.state.account }, (error, result) => {
-            this.setState({
-              tokenBalance: window.web3.utils.fromWei(result.toString()),
-            });
+        .balanceOf(this.state.account)
+        .call({ from: this.state.account }, (error, result) => {
+          this.setState({
+            tokenBalance: window.web3.utils.fromWei(result.toString()),
           });
+        });
     };
 
     const buyToken = async (etherAmount) => {
       let toWei = window.web3.utils.toWei(etherAmount);
-      this.state.ethSwap.methods.buyTokens
+      this.state.ethSwap.methods
+        .buyTokens()
         .send({ from: this.state.account, value: toWei })
         .then((hash) => console.log(hash));
+    };
+
+    const sellToken = async (tokenAmount) => {
+      let toWei = window.web3.utils.toWei(tokenAmount);
+      this.state.token.methods
+        .approve(this.state.ethSwap.address, toWei)
+        .send({ from: this.state.account })
+        .then((hash) => console.log(hash));
+      this.state.ethSwap.methods
+        .sellTokens(toWei)
+        .send({ from: this.state.account })
+        .then((hash) => console.log(hash));
+    };
+
+    const toggleBuySell = (event) => {
+      event.preventDefault();
+      if (this.state.buyOrSell === "Buy") this.setState({ buyOrSell: "Sell" });
+      else this.setState({ buyOrSell: "Buy" });
     };
 
     const chainChangedHandler = () => {
@@ -124,14 +146,24 @@ class App extends Component {
     if (this.state.loading) {
       mainComponent = <div>Loading.......</div>;
     } else {
-      mainComponent = (
-        <BuyForm
-          ethBalance={this.state.balance}
-          ourTokenBalance={this.state.tokenBalance}
-          buyToken={buyToken}
-          rate={this.state.rate}
-        />
-      );
+      mainComponent =
+        this.state.buyOrSell === "Buy" ? (
+          <BuyForm
+            ethBalance={this.state.balance}
+            ourTokenBalance={this.state.tokenBalance}
+            buyToken={buyToken}
+            rate={this.state.rate}
+            toggle={toggleBuySell}
+          />
+        ) : (
+          <SellForm
+            ethBalance={this.state.balance}
+            ourTokenBalance={this.state.tokenBalance}
+            sellToken={sellToken}
+            rate={this.state.rate}
+            toggle={toggleBuySell}
+          />
+        );
     }
 
     return (
